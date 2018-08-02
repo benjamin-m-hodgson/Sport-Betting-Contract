@@ -1,3 +1,4 @@
+var owner = "0xd566ac2b97ad457202eb4cc31a7b10cb48dfd6d3";
 var account;
 var web3Provider;
 var balanceETH = 0;
@@ -10,6 +11,10 @@ function setAccount() {
 			//set the account display
 			account = web3.eth.accounts[0];
 			$("#metamaskButton").text(account);
+            // TODO get owner address from contract
+            if (account == owner) {
+                $('#addLeague').show();
+            }
 
 			// set the ethereum balance display
 			web3.eth.getBalance(account, function(err, res) {
@@ -23,7 +28,50 @@ function setAccount() {
 	});
 }
 
+// button click functions
+
+function submitAddLeague() {
+    // TODO handle submission
+    matchLinkListener();
+}
+
+function cancelAddLeague() {
+    matchLinkListener();
+}
+
+// Listeners
+
+function matchLinkListener() {
+    $('#matchTable').show();
+    $('#leagueForm').hide();
+    $('#betForm').hide();
+}
+
+function addLeagueListener() {
+    $('#matchTable').hide();
+    $('#leagueForm').show();
+    $('#betForm').hide();
+}
+
+
 window.addEventListener('load', function() {
+
+    // hide/show html
+    $('#addLeague').hide();     // hide the Add League link in the header
+    $('#leagueForm').hide();    // hide the form to add a league
+    $('#betForm').show();
+    $('#matchTable').hide();
+
+    // attach listeners
+    var matchLink = document.querySelector('#matchLink');
+	matchLink.addEventListener('click', function(event) {
+        matchLinkListener();
+    });
+
+    var addLeagueLink = document.querySelector('#addLeague');
+	addLeagueLink.addEventListener('click', function(event) {
+        addLeagueListener();
+    });
 
 	// connect to web3
 	if (typeof web3 !== 'undefined') {

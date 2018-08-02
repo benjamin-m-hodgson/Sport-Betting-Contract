@@ -1,0 +1,125 @@
+/*******************************************************************/
+/* General page styling
+/*******************************************************************/
+.title {
+    padding-top: 10px;
+    z-index: 2001;
+    color: #696969;
+}
+.main-container {
+    padding-top: 70px;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+}
+.center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+.center-horizontal {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    text-align: center;
+}
+.selected {
+    box-shadow: 0px 2px 10px 0.1px #1E90FF;
+}
+/*******************************************************************/
+/* Styling for match table display information
+/*******************************************************************/
+.table-wrapper {
+    overflow:hidden;
+    overflow-y: scroll;
+    height: 500px;
+}
+.match-table {
+    width: 100%;
+}
+.match-table tbody {
+    outline: thin solid #696969;
+}
+.match-table .table-header {
+    position: relative;
+}
+.match-table th {
+    font-size: 18px;
+    color: #696969;
+    text-align: center;
+}
+.match-table td {
+    text-align: center;
+}
+.match-table .click-row:hover {
+    background-color: #F0F0F0;
+    cursor: pointer;
+}
+/*******************************************************************/
+/* Styling for adding league
+/*******************************************************************/
+.league-container {
+    width: 60%;
+    height: 75%;
+    padding: 20px;
+    background-color: #F0F0F0;
+    border-radius: 4px;
+}
+.league-container .btn-wrapper .cancel-btn,
+.league-container .btn-wrapper .submit-btn {
+    margin-top: 40%;
+}
+.input-wrapper {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.input-div {
+    width: 200px;
+    margin-bottom: 10px;
+}
+.input-div .title{
+    float: left;
+    padding-left: 10px;
+    margin-bottom: 0px;
+}
+.lg-input {
+    margin-top: 5px;
+}
+/*******************************************************************/
+/* Styling for placing bet
+/*******************************************************************/
+.bet-container {
+    width: 60%;
+    height: 75%;
+    background-color: #F0F0F0;
+    border-radius: 4px;
+}
+.match-container {
+    padding-top: 30px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+.team-container {
+    padding: 20px;
+    background-color: #FFF;
+    border-radius: 4px;
+}
+.team-container:hover {
+    box-shadow: 0px 2px 10px 0.1px #1E90FF;
+    cursor: pointer;
+}
+.input-container {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 200px;
+}
+.input-container .btn-wrapper {
+    margin-top: 20px;
+}

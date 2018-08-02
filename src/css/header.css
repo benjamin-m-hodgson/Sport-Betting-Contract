@@ -142,7 +142,7 @@ table {
 }
 .navbar-color .navbar-brand:focus, .navbar-color .navbar-brand:hover {
     /*color: #fff;*/
-    color: #DFAF44;
+    color: #1E90FF;
 }
 .navbar-color .navbar-nav .nav-link {
     /*color: rgba(255,255,255,.5);*/
@@ -151,7 +151,7 @@ table {
 }
 .navbar-color .navbar-nav .nav-link:focus, .navbar-color .navbar-nav .nav-link:hover {
     /*color: rgba(255,255,255,.75);*/
-    color: #DFAF44;
+    color: #1E90FF;
 }
 .navbar-color .navbar-nav .nav-link.disabled {
     color: rgba(255,255,255,.25)
@@ -168,7 +168,7 @@ table {
     transition: 0.2s;
 }
 .navbar-color .navbar-toggler-icon:hover {
-    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='#DFAF44' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E") !important;
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='#1E90FF' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E") !important;
 }
 .navbar-color .navbar-text {
     color:rgba(255,255,255,.5)
@@ -182,7 +182,6 @@ table {
 }
 .bg-color {
     background-color: #F0F0F0 !important;
-    box-shadow: 0px -5px 40px 1px #929292;
     opacity: 0.9;
 }
 a.bg-color:focus, a.bg-color:hover, button.bg-color:focus, button.bg-color:hover {
@@ -305,7 +304,8 @@ tbody.collapse.show {
     padding: .5rem 1rem
 }
 .nav-link:focus, .nav-link:hover {
-    text-decoration: none
+    text-decoration: none;
+    cursor: pointer;
 }
 .nav-link.disabled {
     color: #6c757d
