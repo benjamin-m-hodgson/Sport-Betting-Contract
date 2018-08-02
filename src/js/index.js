@@ -49,8 +49,13 @@ function matchLinkListener() {
 
 function addLeagueListener() {
     $('#matchTable').hide();
-    $('#leagueForm').show();
     $('#betForm').hide();
+    $('#leagueForm').show();
+}
+
+function matchBetListener() {
+    $('#matchTable').hide();
+    $('#betForm').show();
 }
 
 
@@ -59,8 +64,7 @@ window.addEventListener('load', function() {
     // hide/show html
     $('#addLeague').hide();     // hide the Add League link in the header
     $('#leagueForm').hide();    // hide the form to add a league
-    $('#betForm').show();
-    $('#matchTable').hide();
+    $('#betForm').hide();       // hide the form to place a bet
 
     // attach listeners
     var matchLink = document.querySelector('#matchLink');
@@ -71,6 +75,11 @@ window.addEventListener('load', function() {
     var addLeagueLink = document.querySelector('#addLeague');
 	addLeagueLink.addEventListener('click', function(event) {
         addLeagueListener();
+    });
+
+    var match = document.querySelector('#match');
+	match.addEventListener('click', function(event) {
+        matchBetListener();
     });
 
 	// connect to web3
