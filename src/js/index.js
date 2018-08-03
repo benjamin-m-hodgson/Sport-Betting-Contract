@@ -13,6 +13,7 @@ function setAccount() {
 			$("#metamaskButton").text(account);
             // TODO get owner address from contract
             if (account == owner) {
+                $('#editLeague').show();
                 $('#addLeague').show();
             }
 
@@ -45,24 +46,33 @@ function matchLinkListener() {
     $('#matchTable').show();
     $('#leagueForm').hide();
     $('#betForm').hide();
+    $('#addLeague').hide();
+}
+
+function editLeagueListener() {
+    $('#addLeague').show();
+    // TODO resort match table list to display league information
 }
 
 function addLeagueListener() {
     $('#matchTable').hide();
-    $('#betForm').hide();
+    $('#addLeague').hide();
     $('#leagueForm').show();
+    // TODO resort match table list to display league information
 }
 
 function matchBetListener() {
     $('#matchTable').hide();
     $('#betForm').show();
+    $('#addLeague').hide();
 }
 
 
 window.addEventListener('load', function() {
 
     // hide/show html
-    $('#addLeague').hide();     // hide the Add League link in the header
+    $('#editLeague').hide();    // hide the edit League link in the header
+    $('#addLeague').hide();     // hide the Add League button
     $('#leagueForm').hide();    // hide the form to add a league
     $('#betForm').hide();       // hide the form to place a bet
 
@@ -72,8 +82,13 @@ window.addEventListener('load', function() {
         matchLinkListener();
     });
 
-    var addLeagueLink = document.querySelector('#addLeague');
-	addLeagueLink.addEventListener('click', function(event) {
+    var editLeagueLink = document.querySelector('#editLeague');
+	editLeagueLink.addEventListener('click', function(event) {
+        editLeagueListener();
+    });
+
+    var addLeagueBtn = document.querySelector('#addLeague');
+	addLeagueBtn.addEventListener('click', function(event) {
         addLeagueListener();
     });
 
