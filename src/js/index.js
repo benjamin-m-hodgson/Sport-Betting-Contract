@@ -14,7 +14,10 @@ function setAccount() {
             // TODO get owner address from contract
             if (account == owner) {
                 $('#editLeague').show();
-                $('#addLeague').show();
+            }
+            // TODO replace to check if account is an authorized league host
+            if (account == owner) {
+                $('#addMatch').show();
             }
 
 			// set the ethereum balance display
@@ -38,6 +41,29 @@ function submitAddLeague() {
 
 function cancelAddLeague() {
     matchLinkListener();
+}
+
+function submitAddResult() {
+    // TODO handle submission
+    $('#placeResult').hide();
+    $('#placeBet').show();
+    matchLinkListener();
+}
+
+function cancelAddResult() {
+    $('#placeResult').hide();
+    $('#placeBet').show();
+    matchLinkListener();
+}
+
+function addResult() {
+    $('#matchTable').hide();
+    $('#addLeague').hide();
+    $('#addLeague').hide();
+    $('#placeBet').hide();
+    $('#placeResult').show();
+    $('#betForm').show();
+    // TODO take match data from html
 }
 
 // Listeners
@@ -75,6 +101,7 @@ window.addEventListener('load', function() {
     $('#addLeague').hide();     // hide the Add League button
     $('#leagueForm').hide();    // hide the form to add a league
     $('#betForm').hide();       // hide the form to place a bet
+    $('#addMatch').hide();      // hide the add match link in the header
 
     // attach listeners
     var matchLink = document.querySelector('#matchLink');
@@ -90,6 +117,11 @@ window.addEventListener('load', function() {
     var addLeagueBtn = document.querySelector('#addLeague');
 	addLeagueBtn.addEventListener('click', function(event) {
         addLeagueListener();
+    });
+
+    var addMatchLink = document.querySelector('#addMatch');
+	addMatchLink.addEventListener('click', function(event) {
+        console.log('add match');
     });
 
     var match = document.querySelector('#match');

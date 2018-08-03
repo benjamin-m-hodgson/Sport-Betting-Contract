@@ -32,6 +32,9 @@
                     <li id="editLeague">
                         <a class="nav-link">Edit League</a>
                     </li>
+                    <li id="addMatch">
+                        <a class="nav-link">Add Match</a>
+                    </li>
                 </ul>
                 <form class="form-inline my-2 my-lg-0">
                     <span id="balanceETH" class="badge badge-info">0.00 ETH</span>
@@ -59,153 +62,12 @@
                         <td>MLB</td>
                         <td>Time</td>
                         <td>Home Team</td>
-                        <td>Home Score</td>
+                        <td rowspan="2"><button class="submit-btn" onclick="addResult()">Submit result</button></td>
                     </tr>
                     <tr>
                         <td>Logo</td>
                         <td>Date</td>
                         <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
-                    </tr>
-                </tbody>
-                <tbody class="click-row" id="match">
-                    <tr>
-                        <td>MLB</td>
-                        <td>Time</td>
-                        <td>Home Team</td>
-                        <td>Home Score</td>
-                    </tr>
-                    <tr>
-                        <td>Logo</td>
-                        <td>Date</td>
-                        <td>Away Team</td>
-                        <td>Away Score</td>
                     </tr>
                 </tbody>
                 <tbody class="click-row" id="match">
@@ -224,7 +86,7 @@
                 </tbody>
             </table>
         </div>
-        <button class="submit-btn" onclick="" id="addLeague">Add League</button>
+        <button class="submit-btn center-horizontal" onclick="" id="addLeague">Add League</button>
 
         <div class="league-container center" id="leagueForm">
             <h1 class="title">Add League</h1>
@@ -253,7 +115,6 @@
                     <h3>Logo</h3>
                     &nbsp;
                     <h3>Team Name</h3>
-                    <h2>-</h2>
                 </div>
                 <div class="time-container">
                     <h5>League</h5>
@@ -268,15 +129,23 @@
                     <h3>Logo</h3>
                     &nbsp;
                     <h3>Team Name</h3>
-                    <h2>-</h2>
                 </div>
             </div>
-            <div class="input-container center-horizontal">
+            <div class="input-container center-horizontal" id="placeBet">
                 <h6 id="betPrompt">Select a team</h6>
                 <input type="number" class="sm-input" id="nameInput" placeholder="Enter bet amount">
                 <span class="btn-wrapper">
                     <button class="cancel-btn" onclick="cancelAddLeague()">Cancel</button>
                     <button class="submit-btn" onclick="submitAddLeague()">Submit</button>
+                </span>
+            </div>
+            <div class="input-container center-horizontal" id="placeResult">
+                <h6 id="betPrompt">Enter scores</h6>
+                <input type="number" class="sm-input" id="nameInput" placeholder="Enter home score">
+                <input type="number" class="sm-input" id="nameInput" placeholder="Enter away score">
+                <span class="btn-wrapper">
+                    <button class="cancel-btn" onclick="cancelAddResult()">Cancel</button>
+                    <button class="submit-btn" onclick="submitAddResult()">Submit</button>
                 </span>
             </div>
         </div>
