@@ -59,8 +59,8 @@ function cancelAddResult() {
 function addResult() {
     $('#matchTable').hide();
     $('#addLeague').hide();
-    $('#addLeague').hide();
     $('#placeBet').hide();
+	document.getElementById("betTitle").textContent="Submit Result";
     $('#placeResult').show();
     $('#betForm').show();
     // TODO take match data from html
@@ -89,8 +89,11 @@ function addLeagueListener() {
 
 function matchBetListener() {
     $('#matchTable').hide();
+	$('#addLeague').hide();
+	$('#placeResult').hide();
+	document.getElementById("betTitle").textContent="Place Bet";
+	$('#placeBet').show();
     $('#betForm').show();
-    $('#addLeague').hide();
 }
 
 
