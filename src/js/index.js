@@ -134,7 +134,7 @@ window.addEventListener('load', function() {
 
 	// connect to web3
 	if (typeof web3 !== 'undefined') {
-		web3Provider = web3.currentProvider;
+		web3Provider = web3.currentProvider; 
         web3 = new Web3(web3Provider);
         setAccount();
 	} else {
