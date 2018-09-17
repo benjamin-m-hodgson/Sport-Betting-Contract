@@ -23,50 +23,19 @@ contract owned {
  *
  * Sport Betting Contract
  *
- * Actors:
- *  1. Owner: contract owner, can add or remove match makers
- *  2. Match makers: can create and remove matches and supply match results
- *  3. Betters: can place bets on matches
- *
- * Betters are allowed one bet per match and can place and remove bets anytime
- * before a match is set to begin. If a betters bet was correct, they can
- * withdraw their reward after the match is marked finished by match makers.
- *
- * Match makers can begin to submit results 95 minutes after a match began.
- * Only match makers can submit results. Once resultsNecessary
- * percent of total match makers (currently 75%) have submitted results for the
- * match the match is marked as finished and no more results can be submitted.
- * The final result is considered to be the most submitted result by match makers.
- * Match makers can only claim a reward if their submission matches the final result.
- *
- * By only allowing 75% of match makers to submit a result it creates an incentive
- * for match makers to expediently submit results to guarantee they receive a
- * reward. Match makers can then withdraw rewards for their correct result submissions
- * once a match is marked as finished. The reward for match makers is taken as
- * 1-resultShare (currently 1%) of the total bet pool split evenly.
- * A reward is only issued to match makers if the remaining resultShare (currently 99%)
- * of the bet pool is greater in value than the winning pool to ensure correct
- * betters don't lose money.
- *
- * This incentivization encourages match makers to prioritize submitting results
- * for more popular matches to maximize returns on larger betting pools. However,
- * this platform is suited for betting on large scale matches that draw
- * large audiences. It is reasonable to assume that match makers
- * will only create matches they believe enough people will want to bet on.
- * By this logic all matches posted will have a reasonable number of betters
- * so it is likely the reward for correct results will be large enough to
- * incentivize match makers to supply results for the match.
  */
 contract Betting is owned {
     using SafeMath for uint;
+
+    bytes32 public test;
+    bytes32 public verify;
 
     // store the authorized leagues
     mapping (bytes32 => uint) public leagueIndex;
     League[] public leagues;
 
     // constants that control contract functionality
-    uint public resultsNecessary = uint(3).div(uint(4));
-    uint public resultShare = uint(99).div(uint(100));
+    uint public stakeAmount = 10;
 
     struct League {
         address host;
@@ -98,10 +67,13 @@ contract Betting is owned {
         string awayTeam;
         string league;
         uint startTime;
-        bool finished;
+        uint commits;
+        uint reveals;
+        bool finalized;
         mapping (address => uint) betterIndex;
         Bet[] bets;
         mapping (address => bytes32) resultHash;
+        mapping (address => bytes32) revealHash;
         mapping (bytes32 => uint) resultCountIndex;
         Count[] resultCount;
         uint betPool;
@@ -115,13 +87,14 @@ contract Betting is owned {
     }
 
     struct Count {
-        bool valid;
-        bytes32 value;
+        uint value;
         Result matchResult;
     }
 
     struct Arbiter {
         address id;
+        uint commits;
+        uint reveals;
     }
 
     constructor() public {
@@ -206,6 +179,8 @@ contract Betting is owned {
         // Create and update storage
         Arbiter storage a = thisLeague.arbiters[index];
         a.id = arbiterAddress;
+        a.commits = 0;
+        a.reveals = 0;
     }
 
     /**
@@ -251,12 +226,14 @@ contract Betting is owned {
         string league,
         uint startTime
     ) public returns (bytes32 matchHash) {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0, "Invalid league");
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
+
         // require this is the league host
         require(thisLeague.host == msg.sender, "Sender is not the league host");
+
+        // TODO require match hasn't already started
+        //require(startTime > now + 1 hours, "Match already started");
 
         matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         uint index = thisLeague.matchIndex[matchHash];
@@ -272,7 +249,7 @@ contract Betting is owned {
         newMatch.awayTeam = awayTeam;
         newMatch.league = league;
         newMatch.startTime = startTime;
-        newMatch.finished = false;
+        newMatch.finalized = false;
     }
 
     /**
@@ -290,18 +267,18 @@ contract Betting is owned {
         string league,
         uint startTime
     ) public {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0, "Invalid league");
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
+
         // require this is the league host
         require(thisLeague.host == msg.sender, "Sender is not the league host");
 
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         uint index = thisLeague.matchIndex[matchHash];
-        require(index != 0 || thisLeague.matches[index].hash == matchHash);
+        require(thisLeague.matches[index].hash == matchHash, "Invalid match");
+
         // require the match hasn't started
-        require(now < thisLeague.matches[index].startTime);
+        require(now < thisLeague.matches[index].startTime, "Match has started");
 
         // refund bets
         for (uint b = 0; b < thisLeague.matches[index].bets.length; b++) {
@@ -340,14 +317,12 @@ contract Betting is owned {
         string league,
         uint startTime
     ) view public returns(bytes32, string, string, string, uint, bool) {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0, "Invalid league");
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
 
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         uint index = thisLeague.matchIndex[matchHash];
-        require(index != 0 || thisLeague.matches[index].hash == matchHash);
+        require(thisLeague.matches[index].hash == matchHash, "Invalid match");
         Match storage retMatch = thisLeague.matches[index];
         return (
             retMatch.hash,
@@ -355,101 +330,96 @@ contract Betting is owned {
             retMatch.awayTeam,
             retMatch.league,
             retMatch.startTime,
-            retMatch.finished
+            retMatch.finalized
         );
     }
 
     /**
-     * Allow only match makers to submit a result for a match
+     * Allow only arbiters for the specified 'league' to commit match results
      *
-     * @param homeTeam the home team competing in the match to be removed
-     * @param awayTeam the away team competing in the match to be removed
+     * @param homeTeam the home team competing in the match
+     * @param awayTeam the away team competing in the match
      * @param league the league the match to be removed pertains to
      * @param startTime the time the match to be removed begins
-     * @param homeScore the score reported for the homeTeam
-     * @param awayScore the score reported for the awayTeam
+     * @param resultHash the hash of the result entered by the arbiter
      */
-    function submitMatchResult(
+    function commitMatchResult(
         string homeTeam,
         string awayTeam,
         string league,
         uint startTime,
-        uint homeScore,
-        uint awayScore
-    ) public {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0, "Invalid league");
+        bytes32 resultHash
+    ) public payable {
+        bytes32 leagueHash = validateLeagueArbiter(msg.sender, league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
-        // require this is a league arbiter
-        require(
-            thisLeague.arbiterIndex[msg.sender] != 0 ||
-            thisLeague.arbiters[thisLeague.arbiterIndex[msg.sender]].id == msg.sender,
-            "Sender is not an appointed league arbiter"
-        );
-
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+
         // make sure match is valid
         require(thisMatch.hash == matchHash, "Invalid match");
-        // require match is finished but a result is not finalized
-        require(now > startTime + 95 && !thisMatch.finished, "Match is not finished");
+
+        // require match is finished
+        require(now > startTime + 95, "Match is not finished");
+
+        // require match still needs more commits
+        require(
+            thisLeague.arbiters.length.mul(8).div(10) >= thisMatch.commits,
+            "Match not accepting more commits"
+        );
+
         // only allow one result submission per address
-        require(thisMatch.resultHash[msg.sender] == 0, "Result already submitted");
-        storeMatchResult(msg.sender, league, matchHash, homeTeam, homeScore, awayTeam, awayScore);
+        require(thisMatch.resultHash[msg.sender] == 0, "Result already committed");
+
+        // must stake 'stakeAmount' to commit result
+        require(msg.value >= stakeAmount, "Must stake 10 Wei to commit result");
+
+        storeMatchCommit(msg.sender, league, matchHash, resultHash);
     }
 
     /**
-     * Stores the result specified by the function parameters and attributes the
-     * submission to the sender address.
+     * Allow only arbiters for the specified 'league' to reveal match results
      *
-     * @param sender the address that submitted this result
+     * @param homeTeam the home team competing in the match
+     * @param awayTeam the away team competing in the match
      * @param league the league the match to be removed pertains to
-     * @param matchHash the unique hash that identifies the match
-     * @param homeTeam the home team competing in the match to be removed
-     * @param awayTeam the away team competing in the match to be removed
-     * @param homeScore the score reported for the homeTeam
-     * @param awayScore the score reported for the awayTeam
+     * @param startTime the time the match to be removed begins
+     * @param salt the hash added in the msg.sender's result commit
+     * @param homeScore the score for the home team
+     * @param awayScore the score for the away team
      */
-    function storeMatchResult(
-        address sender,
-        string league,
-        bytes32 matchHash,
+    function revealMatchResult(
         string homeTeam,
-        uint homeScore,
         string awayTeam,
+        string league,
+        uint startTime,
+        bytes32 salt,
+        uint homeScore,
         uint awayScore
-    ) private {
-        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
+    ) public {
+        bytes32 leagueHash = validateLeagueArbiter(msg.sender, league);
+        League storage thisLeague = leagues[leagueIndex[leagueHash]];
+        bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
-        Team memory home = Team(homeTeam, homeScore);
-        Team memory away = Team(awayTeam, awayScore);
-        // hash the result information
-        bytes32 resultKey = keccak256(abi.encodePacked(
-            matchHash,
-            home.name,
-            home.score,
-            away.name,
-            away.score
-        ));
-        // map the sender's address to the result hash
-        thisMatch.resultHash[sender] = resultKey;
-        // map the result hash to an index in the result counter array
-        uint countIndex = thisMatch.resultCountIndex[resultKey];
-        if (countIndex == 0 && !thisMatch.resultCount[countIndex].valid) {
-            // Add result to ID list
-            thisMatch.resultCountIndex[resultKey] = thisMatch.resultCount.length;
-            countIndex = thisMatch.resultCount.length++;
-            // identify the result and mark it valid
-            thisMatch.resultCount[countIndex].matchResult = Result(
-                resultKey, matchHash, home, away);
-            thisMatch.resultCount[countIndex].valid = true;
-        }
-        // add 1 to the number of people who submitted this result
-        Count storage thisCount = thisMatch.resultCount[countIndex];
-        thisCount.value = thisCount.value.add(uint(1));
-        // check if a sufficient amount of results have been submitted
-        processResults(league, matchHash);
+
+        // make sure match is valid
+        require(thisMatch.hash == matchHash, "Invalid match");
+
+        // require match is finished
+        require(now > startTime + 95, "Match is not finished");
+
+        // require match doesn't need more commits
+        require(
+            thisLeague.arbiters.length.mul(8).div(10) < thisMatch.commits,
+            "Match is still accepting commits"
+        );
+
+        // require msg.sender committed a result
+        require(
+            thisMatch.resultHash[msg.sender] != 0,
+            "Result never committed or stake already withdrawn"
+        );
+
+        verifyMatchReveal(msg.sender, league, matchHash, salt, homeScore, awayScore);
     }
 
     /**
@@ -467,31 +437,85 @@ contract Betting is owned {
         string league,
         uint startTime
     ) public {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
+        bytes32 leagueHash = validateLeagueArbiter(msg.sender, league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
-
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
-        // require the match is finished
-        require(thisMatch.finished);
+
+        // require the match is finalized
+        require(thisMatch.finalized, "Match result is not finalized");
         bytes32 finalResultHash = findFinalResultHash(homeTeam, awayTeam, league, startTime);
-        // require they submitted the correct result
-        require(finalResultHash == thisMatch.resultHash[msg.sender]);
+
+        // require they revealed the correct result
+        require(
+            finalResultHash == thisMatch.revealHash[msg.sender],
+            "You did not submit the correct result"
+        );
+
         // reset storage to only allow one result withdrawal
-        thisMatch.resultHash[msg.sender] = bytes32(0);
+        thisMatch.revealHash[msg.sender] = bytes32(0);
+
         uint countIndex = thisMatch.resultCountIndex[finalResultHash];
         Count storage resultCount = thisMatch.resultCount[countIndex];
-        uint winningPool = calculateWinningPool(league, matchHash,
-                                    resultCount.matchResult.winningTeam.name);
-        uint rewardPool = thisMatch.betPool.mul(resultShare);
+
+        uint winningPool;
+        if (resultCount.matchResult.homeTeam.score > resultCount.matchResult.awayTeam.score) {
+            winningPool = calculateWinningPool(league, matchHash,
+                                    resultCount.matchResult.homeTeam.name);
+        }
+        else if (resultCount.matchResult.homeTeam.score < resultCount.matchResult.awayTeam.score) {
+            winningPool = calculateWinningPool(league, matchHash,
+                                    resultCount.matchResult.awayTeam.name);
+        }
+        else {
+            //handle tie
+            winningPool = 0;
+        }
+
+        uint rewardPool = thisMatch.betPool.mul(99).div(100);
+
         // reward if there are enough losers to guarantee winners don't lose money
         if (rewardPool > winningPool) {
-            uint resultPool = thisMatch.betPool.sub(rewardPool);
-            uint reward = resultPool.div(resultCount.value);
+            uint arbiterPool = thisMatch.betPool.sub(rewardPool);
+            uint reward = arbiterPool.div(resultCount.value);
             msg.sender.transfer(reward);
         }
+    }
+
+    /**
+     * Allows anyone to get the final result information for the specified
+     * match
+     *
+     * @param matchHash the identifying hash for the match
+     * @param league the league the match pertains to
+     */
+    function getFinalResult(
+        bytes32 matchHash,
+        string league
+    ) view public returns (bytes32, bytes32, string, uint, string, uint) {
+        League storage thisLeague = leagues[leagueIndex[validateLeague(league)]];
+        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+
+        // require the match is finalized
+        require(thisMatch.finalized, "Match result not finalized");
+
+        // loop through result counter and determine most numerous result
+        uint maxCounter = 0;
+        Result storage maxResult = thisMatch.resultCount[0].matchResult;
+        for (uint i = 0; i < thisMatch.resultCount.length; i++) {
+            if (thisMatch.resultCount[i].value > maxCounter) {
+                maxCounter = thisMatch.resultCount[i].value;
+                maxResult = thisMatch.resultCount[i].matchResult;
+            }
+        }
+        return (
+            maxResult.hash,
+            maxResult.matchHash,
+            maxResult.homeTeam.name,
+            maxResult.homeTeam.score,
+            maxResult.awayTeam.name,
+            maxResult.awayTeam.score
+        );
     }
 
     /**
@@ -511,7 +535,7 @@ contract Betting is owned {
         uint startTime,
         string betOnTeam
     ) payable public {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
 
         // make sure this is a valid bet
@@ -559,20 +583,24 @@ contract Betting is owned {
         string league,
         uint startTime
     ) payable public {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
 
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
+
         // make sure match is a valid match
         uint index = thisLeague.matchIndex[matchHash];
-        require(index != 0 || thisLeague.matches[index].hash == matchHash);
+        require(index != 0 || thisLeague.matches[index].hash == matchHash, "Invalid match");
+
         // require the user has placed a bet on the match
         uint betIndex = thisLeague.matches[index].betterIndex[msg.sender];
-        require(betIndex != 0 || thisLeague.matches[index].bets[betIndex].owner == msg.sender);
+        require(
+            betIndex != 0 || thisLeague.matches[index].bets[betIndex].owner == msg.sender,
+            "You did not place a bet on this match"
+        );
+
         // require the match hasn't started
-        require(now < thisLeague.matches[index].startTime);
+        require(now < thisLeague.matches[index].startTime, "Match already started");
 
         // save the bet amount for refunding purposes
         uint betAmount = thisLeague.matches[index].bets[betIndex].amount;
@@ -615,9 +643,7 @@ contract Betting is owned {
         string league,
         uint startTime
     ) view public returns (bytes32, address, string, uint, bool) {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
 
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
@@ -656,82 +682,29 @@ contract Betting is owned {
         string league,
         uint startTime
     ) public {
-        // require it's a valid league
-        require(leagueIndex[keccak256(abi.encodePacked(league))] != 0);
-        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
-
+        League storage thisLeague = leagues[leagueIndex[validateLeague(league)]];
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
-        // require the match is finished
         Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
-        require(thisMatch.finished);
+
+        // require the match result is finalized
+        require(thisMatch.finalized, "Match result not finalized");
+
         // require the bet hasn't been withdrawn and msg.sender owns a bet
         uint betIndex = thisMatch.betterIndex[msg.sender];
         Bet storage userBet = thisMatch.bets[betIndex];
-        require(!userBet.withdrawn && userBet.owner == msg.sender);
+        require(
+            !userBet.withdrawn && userBet.owner == msg.sender,
+            "Bet already withdrawn or never placed on the match"
+        );
 
         bytes32 finalResultHash = findFinalResultHash(homeTeam, awayTeam, league, startTime);
-        uint resultIndex = thisMatch.resultCountIndex[finalResultHash];
-        Result storage finalResult = thisMatch.resultCount[resultIndex].matchResult;
-        // withdraw Bet
-        userBet.withdrawn = true;
-        // check if they won the Bet
-        if (keccak256(abi.encodePacked(userBet.betOnTeam))
-                == keccak256(abi.encodePacked(finalResult.winningTeam.name))) {
-            uint winningPool = calculateWinningPool(league, matchHash,
-                                            finalResult.winningTeam.name);
-            uint rewardPool = thisMatch.betPool.mul(resultShare);
-            // if no losers, return bets
-            if (rewardPool <= winningPool) {
-                msg.sender.transfer(userBet.amount);
-            }
-            // otherwise calculate rewards
-            else {
-                uint reward = rewardPool.mul(userBet.amount.div(winningPool));
-                msg.sender.transfer(reward);
-            }
-        }
+
+        processBetWithdraw(msg.sender, league, matchHash, finalResultHash);
     }
 
-    /**
-     * Allows anyone to get the final result information for the specified
-     * match
-     *
-     * @param homeTeam the home team competing in the match to be removed
-     * @param awayTeam the away team competing in the match to be removed
-     * @param league the league the match to be removed pertains to
-     * @param startTime the time the match to be removed begins
-     */
-    function getFinalResult(
-        string homeTeam,
-        string awayTeam,
-        string league,
-        uint startTime
-    ) view public returns (bytes32, bytes32, string, uint, string, uint) {
-        // require it's a valid league
-        require(leagueIndex[keccak256(abi.encodePacked(league))] != 0);
-        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
-
-        // require the match is finished
-        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[getMatchHash(homeTeam, awayTeam, league, startTime)]];
-        require(thisMatch.finished);
-        // loop through result counter and determine most numerous result
-        uint maxCounter = 0;
-        Result storage maxResult = thisMatch.resultCount[0].matchResult;
-        for (uint i = 0; i < thisMatch.resultCount.length; i++) {
-            if (thisMatch.resultCount[i].value > maxCounter) {
-                maxCounter = thisMatch.resultCount[i].value;
-                maxResult = thisMatch.resultCount[i].matchResult;
-            }
-        }
-        return (
-            maxResult.hash,
-            maxResult.matchHash,
-            maxResult.winningTeam.name,
-            maxResult.winningTeam.score,
-            maxResult.losingTeam.name,
-            maxResult.losingTeam.score
-        );
-    }
+    /***************************************************************************
+     * Private functions
+     **************************************************************************/
 
     /**
      * Verifies that 'leagueName' is a valid league
@@ -760,25 +733,9 @@ contract Betting is owned {
     }
 
     /**
-     * Returns the hash of the final result for the specified match
-     */
-    function findFinalResultHash(
-        string homeTeam,
-        string awayTeam,
-        string league,
-        uint startTime
-    ) view private returns (bytes32) {
-        (bytes32 resultHash,
-         bytes32 matchHash,
-         string memory winningTeam,
-         uint winningScore,
-         string memory losingTeam,
-         uint losingScore) = getFinalResult(homeTeam, awayTeam, league, startTime);
-        return resultHash;
-    }
-
-    /**
      * Validates that a bet can be placed on a valid match
+     *
+     * @notice assumes the 'league' has already been confirmed as valid
      *
      * @return index the match index for the match the bet is placed on
      */
@@ -790,19 +747,221 @@ contract Betting is owned {
         string betOnTeam
     ) view private returns (uint index) {
         bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
         bytes32 matchHash = getMatchHash(homeTeam, awayTeam, league, startTime);
         index = thisLeague.matchIndex[matchHash];
-        // require the match can be bet on
-        require((index != 0 || thisLeague.matches[index].hash == matchHash)
+
+        // require the match can still be bet on
+        require(thisLeague.matches[index].hash == matchHash
             && now < thisLeague.matches[index].startTime);
+
         // require the bet is on a valid team
         require(keccak256(abi.encodePacked(betOnTeam)) ==
                     keccak256(abi.encodePacked(thisLeague.matches[index].homeTeam))
                 || keccak256(abi.encodePacked(betOnTeam)) ==
                     keccak256(abi.encodePacked(thisLeague.matches[index].awayTeam)));
+    }
+
+    /**
+     * Stores the result commit specified by the function parameters and
+     * attributes the submission to the sender address.
+     *
+     * @notice assumes the 'league' has already been confirmed as valid
+     * @notice assumes 'sender' has already been confirmed as a league arbiter
+     *
+     * @param sender the address that submitted this result
+     * @param league the league the match to be removed pertains to
+     * @param matchHash the unique hash that identifies the match
+     * @param resultHash the hash of the result committed by the arbiter
+     */
+    function storeMatchCommit(
+        address sender,
+        string league,
+        bytes32 matchHash,
+        bytes32 resultHash
+    ) private {
+        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
+        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+        // map the sender's address to the hash of the result and the match hash
+        bytes32 resultKey = keccak256(abi.encodePacked(resultHash, matchHash));
+        thisMatch.resultHash[sender] = resultKey;
+        thisMatch.commits.add(1);
+        thisLeague.arbiters[thisLeague.arbiterIndex[sender]].commits.add(1);
+    }
+
+    /**
+     * Verifies that the result revealed matches the result previously committed
+     * by the address 'sender' for this match
+     *
+     * @notice assumes the 'league' has already been confirmed as valid
+     * @notice assumes 'sender' has already been confirmed as a league arbiter
+     *
+     * @param sender the address that submitted this result
+     * @param league the league the match to be removed pertains to
+     * @param matchHash the unique hash that identifies the match
+     * @param salt the hash added in the msg.sender's result commit
+     * @param homeScore the score for the home team
+     * @param awayScore the score for the away team
+     */
+    function verifyMatchReveal(
+        address sender,
+        string league,
+        bytes32 matchHash,
+        bytes32 salt,
+        uint homeScore,
+        uint awayScore
+    ) private {
+        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
+        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+        bytes32 commit = thisMatch.resultHash[sender];
+        bytes32 result = keccak256(abi.encodePacked(salt, homeScore, awayScore));
+        bytes32 verifyCommit = keccak256(abi.encodePacked(result, matchHash));
+        if (commit == verifyCommit) {
+            // overwrite mapping to allow only one reveal per address
+            thisMatch.resultHash[sender] = bytes32(0);
+            sender.transfer(stakeAmount);
+
+            // store the result and increase reveal number if match isn't finalized
+            if (!thisMatch.finalized) {
+                bytes32 storeResult = keccak256(abi.encodePacked(matchHash, homeScore, awayScore));
+                storeMatchReveal(sender, league, matchHash, storeResult, homeScore, awayScore);
+            }
+        }
+    }
+
+    /**
+     * Verifies that the result revealed matches the result previously committed
+     * by the address 'sender' for this match
+     *
+     * @notice assumes the 'league' has already been confirmed as valid
+     * @notice assumes 'sender' has already been confirmed as a league arbiter
+     *
+     * @param sender the address that submitted this result
+     * @param league the league the match to be removed pertains to
+     * @param matchHash the unique hash that identifies the match
+     * @param storeResult the hash to identify the result revealed
+     * @param homeScore the score for the home team
+     * @param awayScore the score for the away team
+     */
+    function storeMatchReveal(
+        address sender,
+        string league,
+        bytes32 matchHash,
+        bytes32 storeResult,
+        uint homeScore,
+        uint awayScore
+    ) private {
+        League storage thisLeague = leagues[leagueIndex[keccak256(abi.encodePacked(league))]];
+        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+
+        // map the sender's address to the result hash
+        thisMatch.revealHash[sender] = storeResult;
+
+        // map the result hash to an index in the result counter array
+        uint countIndex = thisMatch.resultCountIndex[storeResult];
+        if (countIndex == 0
+                && thisMatch.resultCount[countIndex].matchResult.hash != storeResult) {
+            // Add result to ID list
+            thisMatch.resultCountIndex[storeResult] = thisMatch.resultCount.length;
+            countIndex = thisMatch.resultCount.length++;
+
+            // identify the result
+            thisMatch.resultCount[countIndex].matchResult = Result(
+                storeResult,
+                matchHash,
+                Team(thisMatch.homeTeam, homeScore),
+                Team(thisMatch.awayTeam, awayScore)
+            );
+        }
+        // add 1 to the number of people who submitted this result
+        Count storage thisCount = thisMatch.resultCount[countIndex];
+        thisCount.value = thisCount.value.add(uint(1));
+
+        // add to the number of reveals, check if match is finalized
+        thisMatch.reveals.add(1);
+        thisLeague.arbiters[thisLeague.arbiterIndex[sender]].reveals.add(1);
+        if(thisMatch.commits.mul(9).div(10) < thisMatch.reveals) {
+            thisMatch.finalized = true;
+        }
+    }
+
+     /**
+     * Distributes the bet reward if the user won the bet
+     *
+     * @notice assumes the 'league' has already been confirmed as valid
+     *
+     * @param sender the address that submitted a bet on this match
+     * @param league the league the match to be removed pertains to
+     * @param matchHash the unique hash that identifies the match
+     * @param finalResultHash the hash of the finalized match result
+     */
+    function processBetWithdraw(
+        address sender,
+        string league,
+        bytes32 matchHash,
+        bytes32 finalResultHash
+    ) private {
+        League storage thisLeague = leagues[leagueIndex[validateLeague(league)]];
+        Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
+
+        uint resultIndex = thisMatch.resultCountIndex[finalResultHash];
+        Result storage finalResult = thisMatch.resultCount[resultIndex].matchResult;
+        uint betIndex = thisMatch.betterIndex[msg.sender];
+        Bet storage userBet = thisMatch.bets[betIndex];
+
+        // withdraw Bet
+        userBet.withdrawn = true;
+        uint reward;
+        if (finalResult.homeTeam.score == finalResult.awayTeam.score) {
+            // handle tie
+            reward = userBet.amount.mul(99).div(100);
+            sender.transfer(reward);
+        }
+        else {
+            // handle win
+            uint winningPool;
+            uint rewardPool = thisMatch.betPool.mul(99).div(100);
+            if (finalResult.homeTeam.score > finalResult.awayTeam.score) {
+                if (keccak256(abi.encodePacked(userBet.betOnTeam))
+                        == keccak256(abi.encodePacked(finalResult.homeTeam.name))) {
+                    winningPool = calculateWinningPool(league, matchHash,
+                                            finalResult.homeTeam.name);
+                    reward = rewardPool.mul(userBet.amount).div(winningPool);
+                    sender.transfer(reward);
+                }
+            }
+            else {
+                if (keccak256(abi.encodePacked(userBet.betOnTeam))
+                        == keccak256(abi.encodePacked(finalResult.awayTeam.name))) {
+                    winningPool = calculateWinningPool(league, matchHash,
+                                            finalResult.awayTeam.name);
+                    reward = rewardPool.mul(userBet.amount).div(winningPool);
+                    sender.transfer(reward);
+                }
+            }
+
+        }
+    }
+
+    /**
+     * Returns the hash of the final result for the specified match
+     */
+    function findFinalResultHash(
+        string homeTeam,
+        string awayTeam,
+        string league,
+        uint startTime
+    ) view private returns (bytes32) {
+        (bytes32 resultHash,
+         bytes32 matchHash,
+         string memory homeName,
+         uint homeScore,
+         string memory awayName,
+         uint awayScore) = getFinalResult(
+            getMatchHash(homeTeam, awayTeam, league, startTime),
+            league
+        );
+        return resultHash;
     }
 
     /**
@@ -817,11 +976,8 @@ contract Betting is owned {
         bytes32 matchHash,
         string winningTeam
     ) view private returns (uint winningPool) {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
+        bytes32 leagueHash = validateLeague(league);
         League storage thisLeague = leagues[leagueIndex[leagueHash]];
-
         Match storage thisMatch = thisLeague.matches[thisLeague.matchIndex[matchHash]];
         winningPool = 0;
         for (uint i = 0; i < thisMatch.bets.length; i++) {
@@ -830,32 +986,6 @@ contract Betting is owned {
                     == keccak256(abi.encodePacked(winningTeam))) {
                 winningPool = winningPool.add(thisBet.amount);
             }
-        }
-    }
-
-    /**
-     * Loops through the submitted results to check to see if a sufficient
-     * amount of results have been submitted to determine a probable outcome
-     *
-     * @param league the league the match to be processed pertains to
-     * @param matchHash the hash of the match the result is for
-     */
-    function processResults(string league, bytes32 matchHash) private {
-        bytes32 leagueHash = keccak256(abi.encodePacked(league));
-        // require it's a valid league
-        require(leagueIndex[leagueHash] != 0);
-        League storage thisLeague = leagues[leagueIndex[leagueHash]];
-
-        uint index = thisLeague.matchIndex[matchHash];
-        Match storage thisMatch = thisLeague.matches[index];
-        uint resultSubmissions = 0;
-        for (uint i = 0; i < thisMatch.resultCount.length; i++) {
-            Count storage thisCount = thisMatch.resultCount[i];
-            resultSubmissions = resultSubmissions.add(thisCount.value);
-        }
-        uint resultRatio = resultSubmissions.div(leagues.length);
-        if (resultRatio >= resultsNecessary) {
-            thisMatch.finished = true;
         }
     }
 
@@ -875,22 +1005,6 @@ contract Betting is owned {
             startTime
         ));
     }
-
-    // fallback payable function
-    function() payable public {
-
-    }
-
-    // getter that returns the contract ether balance
-    function getEtherBalance() onlyOwner view public returns (uint) {
-        return address(this).balance;
-    }
-
-    // delete the contract from the blockchain
-    function kill() onlyOwner public{
-        selfdestruct(owner);
-    }
-
 }
 
 /**

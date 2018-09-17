@@ -32,6 +32,25 @@ function setAccount() {
 	});
 }
 
+function commitResult(homeScore, awayScore) {
+	var num = randomNum().toString();
+	console.log(num);
+	var address = "ca35b7d915458ef540ade6068dfe2f44e8fa733c";
+	console.log(address);
+	var saltString = num + address;
+	console.log(saltString);
+	var salt = web3.sha3(web3.toHex(saltString), {encoding:"hex"}).substring(2);
+	console.log(salt);
+	var resultKey = web3.sha3(web3.toHex(salt) + web3.toHex(homeScore) + web3.toHex(awayScore), {encoding:"hex"});
+	console.log(resultKey);
+	return salt;
+}
+
+function revealResult(salt, homeScore, awayScore) {
+	var resultKey = web3.sha3(web3.toHex(salt) + web3.toHex(homeScore) + web3.toHex(awayScore), {encoding:"hex"});
+	console.log(resultKey);
+}
+
 // button click functions
 
 function submitAddLeague() {
@@ -96,6 +115,9 @@ function matchBetListener() {
     $('#betForm').show();
 }
 
+function randomNum() {
+	return Math.floor(Math.random() * 10000000000000) + 1
+}
 
 window.addEventListener('load', function() {
 
@@ -134,10 +156,12 @@ window.addEventListener('load', function() {
 
 	// connect to web3
 	if (typeof web3 !== 'undefined') {
-		web3Provider = web3.currentProvider; 
+		web3Provider = web3.currentProvider;
         web3 = new Web3(web3Provider);
         setAccount();
+		revealResult(commitResult(1, 1), 1, 1);
 	} else {
 		console.log('No web3? You should consider trying MetaMask!');
 	}
+
 });
